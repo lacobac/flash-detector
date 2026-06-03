@@ -45,7 +45,11 @@ let previousBrightness = 0;
 let lastBeep = 0;
 
 function start() {
-    navigator.mediaDevices.getUserMedia({ video: true })
+    navigator.mediaDevices.getUserMedia({
+        video: {
+            facingMode: "environment"
+        }
+    })
     .then(stream => {
         video.srcObject = stream;
         requestAnimationFrame(checkFrame);
