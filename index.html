@@ -59,34 +59,21 @@ function start() {
     });
 }
 
-function getBrightness(imageData, width, height) {
+function getBrightness(imageData) {
     let data = imageData.data;
     let sum = 0;
 
-    // define central ROI (10–15% of screen)
-    let xStart = Math.floor(width * 0.45);
-    let xEnd   = Math.floor(width * 0.55);
+    // sample every pixel (jednoduché, nie optimalizované)
+    for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i+1];
+        let b = data[i+2];
 
-    let yStart = Math.floor(height * 0.45);
-    let yEnd   = Math.floor(height * 0.55);
-
-    let count = 0;
-
-    for (let y = yStart; y < yEnd; y++) {
-        for (let x = xStart; x < xEnd; x++) {
-
-            let i = (y * width + x) * 4;
-
-            let r = data[i];
-            let g = data[i + 1];
-            let b = data[i + 2];
-
-            sum += 0.299 * r + 0.587 * g + 0.114 * b;
-            count++;
-        }
+        // luminance
+        sum += (0.299*r + 0.587*g + 0.114*b);
     }
 
-    return sum / count;
+    return sum / (data.length / 4);
 }
 
 function beep() {
@@ -102,14 +89,14 @@ function checkFrame() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     let frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let brightness = getBrightness(frame, canvas.width, canvas.height);
+    let brightness = getBrightness(frame);
 
     let delta = brightness - previousBrightness;
 
     let now = Date.now();
 
     // detekcia záblesku
-    if (delta > 8 && now - lastBeep > 200) {
+    if (delta > 15 && now - lastBeep > 200) {
         beep();
         lastBeep = now;
     }
