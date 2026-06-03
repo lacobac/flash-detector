@@ -125,7 +125,7 @@ function checkFrame() {
     let now = Date.now();
 
     // flash detection
-    if (delta > 6 && now - lastBeep > 200) {
+    if (delta > 2 && now - lastBeep > 200) {
         beep();
         lastBeep = now;
     }
