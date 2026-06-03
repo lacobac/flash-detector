@@ -31,7 +31,7 @@
 
 <h1>LED Flash Detector</h1>
 
-<button onclick="start()">Start1</button>
+<button onclick="start()">Start2</button>
 
 <br>
 
@@ -90,15 +90,40 @@ function start() {
 }
 
 // 💡 compute brightness
-function getBrightness(imageData) {
+function getBrightness(imageData, width, height) {
     let data = imageData.data;
-    let sum = 0;
 
-    for (let i = 0; i < data.length; i += 4) {
-        sum += 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+    let cx = Math.floor(width / 2);
+    let cy = Math.floor(height / 2);
+
+    // 1% area = about 10% x 10% square (since area = 1%)
+    let w = Math.floor(width * 0.1);
+    let h = Math.floor(height * 0.1);
+
+    let xStart = cx - Math.floor(w / 2);
+    let xEnd   = cx + Math.floor(w / 2);
+
+    let yStart = cy - Math.floor(h / 2);
+    let yEnd   = cy + Math.floor(h / 2);
+
+    let sum = 0;
+    let count = 0;
+
+    for (let y = yStart; y < yEnd; y++) {
+        for (let x = xStart; x < xEnd; x++) {
+
+            let i = (y * width + x) * 4;
+
+            let r = data[i];
+            let g = data[i + 1];
+            let b = data[i + 2];
+
+            sum += 0.299 * r + 0.587 * g + 0.114 * b;
+            count++;
+        }
     }
 
-    return sum / (data.length / 4);
+    return sum / count;
 }
 
 // 🎯 main loop
@@ -116,7 +141,7 @@ function checkFrame() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     let frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let brightness = getBrightness(frame);
+    let brightness = getBrightness(frame, canvas.width, canvas.height);
 
     // smoothing (VERY important for iPhone stability)
     previousBrightness = previousBrightness * 0.9 + brightness * 0.1;
