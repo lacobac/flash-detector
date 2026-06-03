@@ -31,7 +31,7 @@
 
 <h1>LED Flash Detector</h1>
 
-<button onclick="start()">Start2</button>
+<button onclick="start()">Start3</button>
 
 <br>
 
@@ -46,13 +46,13 @@ let ctx = canvas.getContext('2d');
 let previousBrightness = 0;
 let lastBeep = 0;
 
+// 🔊 Web Audio (reliable on iPhone)
 let audioCtx = null;
 
 function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 }
 
-// 🔊 stable beep (Web Audio API)
 function beep() {
     if (!audioCtx) return;
 
@@ -60,7 +60,7 @@ function beep() {
     let gain = audioCtx.createGain();
 
     osc.type = "sine";
-    osc.frequency.value = 1000;   // tone frequency (Hz)
+    osc.frequency.value = 1000;   // tone frequency
     gain.gain.value = 0.2;        // volume
 
     osc.connect(gain);
@@ -73,7 +73,7 @@ function beep() {
 // 📷 start rear camera
 function start() {
 
-    initAudio(); // unlock audio system
+    initAudio(); // unlock audio
 
     navigator.mediaDevices.getUserMedia({
         video: {
@@ -89,41 +89,16 @@ function start() {
     });
 }
 
-// 💡 compute brightness
-function getBrightness(imageData, width, height) {
+// 💡 brightness calculation (full frame)
+function getBrightness(imageData) {
     let data = imageData.data;
-
-    let cx = Math.floor(width / 2);
-    let cy = Math.floor(height / 2);
-
-    // 1% area = about 10% x 10% square (since area = 1%)
-    let w = Math.floor(width * 0.1);
-    let h = Math.floor(height * 0.1);
-
-    let xStart = cx - Math.floor(w / 2);
-    let xEnd   = cx + Math.floor(w / 2);
-
-    let yStart = cy - Math.floor(h / 2);
-    let yEnd   = cy + Math.floor(h / 2);
-
     let sum = 0;
-    let count = 0;
 
-    for (let y = yStart; y < yEnd; y++) {
-        for (let x = xStart; x < xEnd; x++) {
-
-            let i = (y * width + x) * 4;
-
-            let r = data[i];
-            let g = data[i + 1];
-            let b = data[i + 2];
-
-            sum += 0.299 * r + 0.587 * g + 0.114 * b;
-            count++;
-        }
+    for (let i = 0; i < data.length; i += 4) {
+        sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
     }
 
-    return sum / count;
+    return sum / (data.length / 4);
 }
 
 // 🎯 main loop
@@ -137,23 +112,24 @@ function checkFrame() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // optional: center crop (more stable for LED detection)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     let frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let brightness = getBrightness(frame, canvas.width, canvas.height);
+    let brightness = getBrightness(frame);
 
-    // smoothing (VERY important for iPhone stability)
-    previousBrightness = previousBrightness * 0.9 + brightness * 0.1;
+    // smoother signal (IMPORTANT)
+    let smoothed = previousBrightness * 0.95 + brightness * 0.05;
 
     let delta = brightness - previousBrightness;
     let now = Date.now();
 
-    // flash detection
-    if (delta > 6 && now - lastBeep > 300) {
+    // flash detection (more sensitive)
+    if (delta > 2.5 && now - lastBeep > 250) {
         beep();
         lastBeep = now;
     }
+
+    previousBrightness = smoothed;
 
     requestAnimationFrame(checkFrame);
 }
