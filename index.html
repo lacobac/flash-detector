@@ -92,7 +92,7 @@ function checkFrame() {
     let now = Date.now();
 
     // detekcia záblesku
-    if (delta > 25 && now - lastBeep > 500) {
+    if (delta > 8 && now - lastBeep > 200) {
         beep();
         lastBeep = now;
     }
