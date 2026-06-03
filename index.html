@@ -2,7 +2,7 @@
 <html lang="sk">
 <head>
 <meta charset="UTF-8">
-<title>Pro Flash Detector</title>
+<title>Flash Detector</title>
 
 <style>
     body {
@@ -24,49 +24,35 @@
         padding: 10px 20px;
         margin-top: 20px;
     }
-
-    #info {
-        margin-top: 10px;
-        font-size: 14px;
-        color: #aaa;
-    }
 </style>
 </head>
 
 <body>
 
-<h1>Pro Flash Detector</h1>
+<h1>LED Flash Detector</h1>
 
-<button onclick="start()">Start</button>
+<button onclick="start1()">Start</button>
 
 <br>
 
 <video id="video" autoplay playsinline></video>
 <canvas id="canvas" style="display:none;"></canvas>
 
-<div id="info">Waiting for calibration...</div>
-
 <script>
 let video = document.getElementById('video');
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
-let info = document.getElementById('info');
 
-// signal state
-let baseline = 0;          // ambient light level
-let noise = 5;             // estimated noise level
+let previousBrightness = 0;
 let lastBeep = 0;
 
-// smoothing buffer
-let smoothed = 0;
-
-// audio
 let audioCtx = null;
 
 function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 }
 
+// 🔊 stable beep (Web Audio API)
 function beep() {
     if (!audioCtx) return;
 
@@ -74,8 +60,8 @@ function beep() {
     let gain = audioCtx.createGain();
 
     osc.type = "sine";
-    osc.frequency.value = 1000;
-    gain.gain.value = 0.2;
+    osc.frequency.value = 1000;   // tone frequency (Hz)
+    gain.gain.value = 0.2;        // volume
 
     osc.connect(gain);
     gain.connect(audioCtx.destination);
@@ -84,29 +70,26 @@ function beep() {
     osc.stop(audioCtx.currentTime + 0.1);
 }
 
-// 📷 camera
+// 📷 start rear camera
 function start() {
 
-    initAudio();
+    initAudio(); // unlock audio system
 
     navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
+        video: {
+            facingMode: "environment"
+        }
     })
     .then(stream => {
         video.srcObject = stream;
-
-        // start calibration phase
-        baseline = 0;
-        noise = 5;
-
-        requestAnimationFrame(loop);
+        requestAnimationFrame(checkFrame);
     })
     .catch(err => {
         alert("Kamera nepovolená: " + err);
     });
 }
 
-// brightness
+// 💡 compute brightness
 function getBrightness(imageData) {
     let data = imageData.data;
     let sum = 0;
@@ -118,64 +101,36 @@ function getBrightness(imageData) {
     return sum / (data.length / 4);
 }
 
-// main loop
-let frameCount = 0;
-
-function loop() {
+// 🎯 main loop
+function checkFrame() {
 
     if (video.videoWidth === 0) {
-        requestAnimationFrame(loop);
+        requestAnimationFrame(checkFrame);
         return;
     }
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
+    // optional: center crop (more stable for LED detection)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     let frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
     let brightness = getBrightness(frame);
 
-    // smoothing (noise reduction)
-    smoothed = smoothed * 0.9 + brightness * 0.1;
+    // smoothing (VERY important for iPhone stability)
+    previousBrightness = previousBrightness * 0.9 + brightness * 0.1;
 
-    frameCount++;
-
-    // ----------------------------
-    // 1. CALIBRATION PHASE (first ~60 frames ≈ 1–2 sec)
-    // ----------------------------
-    if (frameCount < 60) {
-        baseline = smoothed;
-        info.textContent = "Calibrating ambient light...";
-        requestAnimationFrame(loop);
-        return;
-    }
-
-    // ----------------------------
-    // 2. ADAPTIVE NOISE ESTIMATION
-    // ----------------------------
-    let deviation = Math.abs(smoothed - baseline);
-    noise = noise * 0.95 + deviation * 0.05;
-
-    // ----------------------------
-    // 3. FLASH DETECTION (adaptive threshold)
-    // ----------------------------
-    let threshold = baseline + noise * 6;   // adaptive sensitivity
-
+    let delta = brightness - previousBrightness;
     let now = Date.now();
 
-    if (smoothed > threshold && now - lastBeep > 250) {
+    // flash detection
+    if (delta > 6 && now - lastBeep > 200) {
         beep();
         lastBeep = now;
-        info.textContent = "FLASH DETECTED!";
-    } else {
-        info.textContent =
-            "Baseline: " + baseline.toFixed(1) +
-            " | Noise: " + noise.toFixed(2) +
-            " | Current: " + smoothed.toFixed(1);
     }
 
-    requestAnimationFrame(loop);
+    requestAnimationFrame(checkFrame);
 }
 </script>
 
