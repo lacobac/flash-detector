@@ -79,7 +79,15 @@ function getBrightness(imageData) {
 function beep() {
     let audio = document.getElementById('beep');
     audio.currentTime = 0;
-    audio.play();
+
+    let p = audio.play();
+
+    if (p !== undefined) {
+        p.catch(err => {
+            console.log("Audio blocked:", err);
+            alert("Audio blocked by browser");
+        });
+    }
 }
 
 function checkFrame() {
