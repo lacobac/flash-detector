@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<title>Flash Detector</title>
+<style>
+    body {
+        font-family: Arial;
+        text-align: center;
+        background: #111;
+        color: white;
+    }
+    video {
+        width: 90%;
+        max-width: 400px;
+        margin-top: 20px;
+        border: 2px solid #444;
+    }
+    button {
+        font-size: 20px;
+        padding: 10px 20px;
+        margin-top: 20px;
+    }
+</style>
+</head>
+<body>
+
+<h1>LED Flash Detector</h1>
+
+<button onclick="start()">Start</button>
+
+<br>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas" style="display:none;"></canvas>
+
+<audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+<script>
+let video = document.getElementById('video');
+let canvas = document.getElementById('canvas');
+let ctx = canvas.getContext('2d');
+
+let previousBrightness = 0;
+let lastBeep = 0;
+
+function start() {
+    navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => {
+        video.srcObject = stream;
+        requestAnimationFrame(checkFrame);
+    })
+    .catch(err => {
+        alert("Kamera nepovolená: " + err);
+    });
+}
+
+function getBrightness(imageData) {
+    let data = imageData.data;
+    let sum = 0;
+
+    // sample every pixel (jednoduché, nie optimalizované)
+    for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i+1];
+        let b = data[i+2];
+
+        // luminance
+        sum += (0.299*r + 0.587*g + 0.114*b);
+    }
+
+    return sum / (data.length / 4);
+}
+
+function beep() {
+    let audio = document.getElementById('beep');
+    audio.currentTime = 0;
+    audio.play();
+}
+
+function checkFrame() {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    let frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let brightness = getBrightness(frame);
+
+    let delta = brightness - previousBrightness;
+
+    let now = Date.now();
+
+    // detekcia záblesku
+    if (delta > 25 && now - lastBeep > 500) {
+        beep();
+        lastBeep = now;
+    }
+
+    previousBrightness = brightness;
+
+    requestAnimationFrame(checkFrame);
+}
+</script>
+
+</body>
+</html>
