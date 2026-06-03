@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Flash Detector</title>
+
 <style>
     body {
         font-family: Arial;
@@ -10,12 +11,14 @@
         background: #111;
         color: white;
     }
+
     video {
         width: 90%;
         max-width: 400px;
         margin-top: 20px;
         border: 2px solid #444;
     }
+
     button {
         font-size: 20px;
         padding: 10px 20px;
@@ -23,6 +26,7 @@
     }
 </style>
 </head>
+
 <body>
 
 <h1>LED Flash Detector</h1>
@@ -34,8 +38,6 @@
 <video id="video" autoplay playsinline></video>
 <canvas id="canvas" style="display:none;"></canvas>
 
-<audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
-
 <script>
 let video = document.getElementById('video');
 let canvas = document.getElementById('canvas');
@@ -44,7 +46,35 @@ let ctx = canvas.getContext('2d');
 let previousBrightness = 0;
 let lastBeep = 0;
 
+let audioCtx = null;
+
+function initAudio() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+// 🔊 stable beep (Web Audio API)
+function beep() {
+    if (!audioCtx) return;
+
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.value = 1000;   // tone frequency (Hz)
+    gain.gain.value = 0.2;        // volume
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.1);
+}
+
+// 📷 start rear camera
 function start() {
+
+    initAudio(); // unlock audio system
+
     navigator.mediaDevices.getUserMedia({
         video: {
             facingMode: "environment"
@@ -59,57 +89,46 @@ function start() {
     });
 }
 
+// 💡 compute brightness
 function getBrightness(imageData) {
     let data = imageData.data;
     let sum = 0;
 
-    // sample every pixel (jednoduché, nie optimalizované)
     for (let i = 0; i < data.length; i += 4) {
-        let r = data[i];
-        let g = data[i+1];
-        let b = data[i+2];
-
-        // luminance
-        sum += (0.299*r + 0.587*g + 0.114*b);
+        sum += 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
     }
 
     return sum / (data.length / 4);
 }
 
-function beep() {
-    let audio = document.getElementById('beep');
-    audio.currentTime = 0;
-
-    let p = audio.play();
-
-    if (p !== undefined) {
-        p.catch(err => {
-            console.log("Audio blocked:", err);
-            alert("Audio blocked by browser");
-        });
-    }
-}
-
+// 🎯 main loop
 function checkFrame() {
+
+    if (video.videoWidth === 0) {
+        requestAnimationFrame(checkFrame);
+        return;
+    }
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
+    // optional: center crop (more stable for LED detection)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     let frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
     let brightness = getBrightness(frame);
 
-    let delta = brightness - previousBrightness;
+    // smoothing (VERY important for iPhone stability)
+    previousBrightness = previousBrightness * 0.9 + brightness * 0.1;
 
+    let delta = brightness - previousBrightness;
     let now = Date.now();
 
-    // detekcia záblesku
-    if (delta > 8 && now - lastBeep > 200) {
+    // flash detection
+    if (delta > 6 && now - lastBeep > 300) {
         beep();
         lastBeep = now;
     }
-
-    previousBrightness = brightness;
 
     requestAnimationFrame(checkFrame);
 }
