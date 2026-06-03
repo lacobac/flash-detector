@@ -31,7 +31,7 @@
 
 <h1>Flash Detector</h1>
 
-<button onclick="start()">Start2</button>
+<button onclick="start()">Start3</button>
 
 <br>
 
@@ -125,7 +125,7 @@ function checkFrame() {
     let now = Date.now();
 
     // flash detection
-    if (delta > 2 && now - lastBeep > 200) {
+    if (delta > 50 && now - lastBeep > 200) {
         beep();
         lastBeep = now;
     }
